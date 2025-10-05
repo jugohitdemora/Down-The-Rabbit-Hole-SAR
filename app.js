@@ -28,6 +28,14 @@ map.createPane('static');   map.getPane('static').style.zIndex  = 450;
 map.createPane('borders');  map.getPane('borders').style.zIndex = 500;
 map.createPane('labels');   map.getPane('labels').style.zIndex  = 600;
 
+console.log('🗺️ Map panes configured:');
+console.log('  basemap z-index:', map.getPane('basemap').style.zIndex);
+console.log('  mask z-index:', map.getPane('mask').style.zIndex);
+console.log('  dynamic z-index:', map.getPane('dynamic').style.zIndex);
+console.log('  static z-index:', map.getPane('static').style.zIndex);
+console.log('  borders z-index:', map.getPane('borders').style.zIndex);
+console.log('  labels z-index:', map.getPane('labels').style.zIndex);
+
 L.tileLayer(
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   { maxZoom: 19, attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, & others.', pane:'basemap' }
@@ -187,6 +195,17 @@ async function makeEventTileFromTxt({ area, layerKey, quarter, opacity }){
     className: 'sar-dyn-tiles'
   });
 
+  // Logs de debugging para tiles
+  tl.on('tileloadstart', (e) => {
+    console.log('🔽 Tile load started:', e.coords, 'URL:', e.tile.src);
+  });
+  tl.on('tileload', (e) => {
+    console.log('✅ Tile loaded successfully:', e.coords);
+  });
+  tl.on('tileerror', (e) => {
+    console.warn('❌ Tile load error:', e.coords, 'URL:', e.tile.src);
+  });
+
   // metadatos para prefetch
   tl.__eventMeta = { area, folder, year, allowSet: allow, tms: isTms };
   return tl;
@@ -231,12 +250,27 @@ async function prefetchEventTiles({ area, folder, year, allowSet, minZ=10, maxZ=
 // ========= TILES SAR (modo global trimestral) =========
 function makeTile(layerKey, quarter, opacity){
   const url = `${BASE}/${layerKey}/${quarter}/{z}/{x}/{y}.png`;
-  return L.tileLayer(url, {
+  console.log('🔨 makeTile() creating layer:', { layerKey, quarter, opacity, url });
+  const layer = L.tileLayer(url, {
     pane:'dynamic',
     opacity: opacity,
     minZoom:5, maxZoom:EXPORTED_MAX_ZOOM, maxNativeZoom:EXPORTED_MAX_ZOOM,
     noWrap:true, tileSize:256, tms:false, errorTileUrl:transparentPng, className: 'sar-dyn-tiles'
   });
+  
+  // Logs de debugging para tiles
+  layer.on('tileloadstart', (e) => {
+    console.log('🔽 Tile load started:', e.coords, 'URL:', e.tile.src);
+  });
+  layer.on('tileload', (e) => {
+    console.log('✅ Tile loaded successfully:', e.coords, 'style:', window.getComputedStyle(e.tile));
+  });
+  layer.on('tileerror', (e) => {
+    console.warn('❌ Tile load error:', e.coords, 'URL:', e.tile.src);
+  });
+  
+  console.log('✅ makeTile() layer created with pane:', layer.options.pane);
+  return layer;
 }
 let activeLayer=null, baseSAR=null;
 
@@ -246,28 +280,57 @@ async function updateLayer(){
   const q  = quarterSelect.value;
   const op = parseFloat(lpOpacity.value);
 
-  if (activeLayer) map.removeLayer(activeLayer);
-  if (baseSAR)     map.removeLayer(baseSAR);
+  console.log('🔄 updateLayer() called:', { layerKey: k, quarter: q, opacity: op, eventKey: window.__activeEventKey });
+
+  if (activeLayer) {
+    console.log('🗑️ Removing old activeLayer');
+    map.removeLayer(activeLayer);
+  }
+  if (baseSAR) {
+    console.log('🗑️ Removing old baseSAR');
+    map.removeLayer(baseSAR);
+  }
   baseSAR = null;
 
   if (window.__activeEventKey === 'rio_quito') {
+    console.log('📍 Using Río Quito event tiles');
     if (k !== 's1rgb') {
       baseSAR = await makeEventTileFromTxt({ area:'rio_quito', layerKey:'s1rgb', quarter:q, opacity:0.6 });
+      console.log('✅ baseSAR created:', baseSAR);
       baseSAR.addTo(map);
+      console.log('✅ baseSAR added to map');
       // Prefetch opcional de la base
       if (baseSAR.__eventMeta) prefetchEventTiles({ ...baseSAR.__eventMeta, concurrency: 10 });
     }
     activeLayer = await makeEventTileFromTxt({ area:'rio_quito', layerKey:k, quarter:q, opacity:op });
+    console.log('✅ activeLayer created:', activeLayer);
     activeLayer.addTo(map);
+    console.log('✅ activeLayer added to map, pane:', activeLayer.options.pane, 'opacity:', activeLayer.options.opacity);
 
     // Prefetch de toda la capa-año seleccionada
     if (activeLayer.__eventMeta) {
       prefetchEventTiles({ ...activeLayer.__eventMeta, minZ:10, maxZ:14, concurrency: 12 });
     }
   } else {
-    if (k !== 's1rgb') baseSAR = makeTile('s1rgb', q, 0.6).addTo(map);
-    activeLayer = makeTile(k, q, op).addTo(map);
+    console.log('🌍 Using global tiles');
+    if (k !== 's1rgb') {
+      baseSAR = makeTile('s1rgb', q, 0.6);
+      console.log('✅ baseSAR created:', baseSAR);
+      baseSAR.addTo(map);
+      console.log('✅ baseSAR added to map');
+    }
+    activeLayer = makeTile(k, q, op);
+    console.log('✅ activeLayer created:', activeLayer);
+    activeLayer.addTo(map);
+    console.log('✅ activeLayer added to map, pane:', activeLayer.options.pane, 'opacity:', activeLayer.options.opacity);
   }
+
+  console.log('📊 Active layers in map:');
+  map.eachLayer((layer) => {
+    if (layer.options && layer.options.pane) {
+      console.log('  - Layer in pane:', layer.options.pane, 'opacity:', layer.options.opacity, 'className:', layer.options.className);
+    }
+  });
 
   layerDesc.innerHTML = `<strong>${LAYERS[k].name}</strong> — ${LAYERS[k].desc}`;
 }
@@ -364,6 +427,7 @@ function buildLayerRadios(){
   });
   layerRadios.querySelectorAll('input[type="radio"]').forEach(r=>{
     r.addEventListener('change', ()=>{
+      console.log('🎚️ Radio button changed to:', r.value);
       layerSelect.value = r.value;
       updateLayer();
     });
@@ -380,6 +444,43 @@ infoBtn.addEventListener('click', ()=>{ const k=layerSelect.value; alert(`${LAYE
 let timer=null;
 function stepForward(){ let i=parseInt(range.value,10); i=(i+1)%QUARTERS.length; range.value=String(i); quarterSelect.value=QUARTERS[i]; updateLayer(); }
 playToggle.addEventListener('change', e=>{ if(e.target.checked){ if(timer) clearInterval(timer); timer=setInterval(stepForward, 1000); } else { if(timer) clearInterval(timer); }});
+
+// ========= DEBUG UTILITIES =========
+window.debugMap = function() {
+  console.log('🔍 MAP DEBUG INFO:');
+  console.log('Active layer:', activeLayer);
+  console.log('Base SAR:', baseSAR);
+  console.log('Current zoom:', map.getZoom());
+  console.log('Current center:', map.getCenter());
+  
+  console.log('\n📊 All layers:');
+  let layerCount = 0;
+  map.eachLayer((layer) => {
+    layerCount++;
+    console.log(`  Layer ${layerCount}:`, {
+      pane: layer.options?.pane,
+      opacity: layer.options?.opacity,
+      className: layer.options?.className,
+      visible: layer._map !== null,
+      container: layer._container
+    });
+  });
+  
+  console.log('\n🎨 Pane z-indexes:');
+  ['basemap', 'mask', 'dynamic', 'static', 'borders', 'labels'].forEach(paneName => {
+    const pane = map.getPane(paneName);
+    if (pane) {
+      console.log(`  ${paneName}:`, {
+        zIndex: pane.style.zIndex,
+        childCount: pane.children.length,
+        display: window.getComputedStyle(pane).display,
+        opacity: window.getComputedStyle(pane).opacity
+      });
+    }
+  });
+};
+
+console.log('💡 Debug utility loaded. Type debugMap() in console to inspect map state.');
 
 // ========= INIT =========
 (function init(){

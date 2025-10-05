@@ -351,7 +351,8 @@ button{ cursor:pointer; }
 /* Opcional: un poco menos de énfasis cuando la pestaña no está activa */
 .sidebar .sb-tab:not(.sb-active) svg{ opacity: .9; }
 /* Mejora de visibilidad del raster sobre imagery */
+/* TEMPORALMENTE COMENTADO PARA DEBUGGING - puede estar haciendo las imágenes invisibles */
 .sar-dyn-tiles{
-  mix-blend-mode: screen;                 /* ilumina sin cambiar colores base */
-  filter: brightness(1.35) contrast(1.6); /* ajusta a gusto */
+  /* mix-blend-mode: screen; */                /* ilumina sin cambiar colores base */
+  /* filter: brightness(1.35) contrast(1.6); */ /* ajusta a gusto */
 }
