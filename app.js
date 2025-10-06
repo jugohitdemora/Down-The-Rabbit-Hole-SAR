@@ -3,24 +3,47 @@ const BUCKET = 'sar-colombia-tiles';
 const BASE   = `https://storage.googleapis.com/${BUCKET}/tiles`;
 const EXPORTED_MAX_ZOOM = 18;
 
-const LAYERS = {
-  s1rgb: {
-    name: 'SAR RGB (VV, VH, VV)',
-    desc: 'Shows surface texture and moisture. Bright = rough/urban; dark = smooth/wet areas. (Tech: Sentinel-1 backscatter composite; VV→R,B and VH→G; σ⁰ GRD, RTC where available.)'
+/* ====== Layer defs: global (default) and per-event ====== */
+// Global set (used when NO event is active)
+const GLOBAL_LAYERS = {
+  s1rgb:   { name: 'SAR RGB (VV,VH,VV)', folder: 's1rgb',  desc: 'Composite of three SAR bands (VV,VH,VV) to reveal surface texture and moisture patterns.' },
+  wet:     { name: 'Water / Wetness',    folder: 'wet_pct', desc: 'Pixels frequently wet (low backscatter). Helps spot inundation or waterlogged areas.' },
+  suspect: { name: 'Out-of-channel water', folder: 'suspect', desc: 'Wet pixels away from the main channel—potential pits, canals or mining related inundation.' },
+  pond3m:  { name: 'Pond density (250 m)', folder: 'pond_pct', desc: 'Percent of “suspect” pixels in a 250 m neighborhood, a proxy for pond clustering.' }
+};
+
+/* Event-specific layer menus.
+ * Keys are UI ids; each entry defines the human label, the GCS folder, and the description.
+ */
+const EVENT_LAYERS = {
+  rio_quito: {
+    s1rgb:   { name: 'SAR RGB (VV,VH,VV)', folder: 'sar_rgb', desc: 'Three-band SAR composite for texture and moisture context.' },
+    wet:     { name: 'Water / Wetness',    folder: 'wet_pct', desc: 'Frequently wet pixels; highlights waterlogged floodplain surfaces.' },
+    suspect: { name: 'Out-of-channel water', folder: 'suspect', desc: 'Wet signals outside the persistent channel (possible pits/canals).' },
+    pond3m:  { name: 'Pond density (250 m)', folder: 'pond_pct', desc: 'Density of out-of-channel wet pixels within ~250 m.' }
   },
-  wet: {
-    name: 'Water / Wetness',
-    desc: 'Highlights waterlogged or inundated surfaces. (Tech: low VV/VH backscatter thresholding by quarter; not a strict “open water” mask; sensitive to roughness/incidence angle.)'
-  },
-  suspect: {
-    name: 'Out-of-channel water',
-    desc: 'Flags wet-looking areas outside the persistent river. Useful for overflow, canals or ponds. (Tech: pixels frequently wet beyond the main channel/buffer mask.)'
-  },
-  pond3m: {
-    name: 'Pond density (250 m)',
-    desc: 'Where small ponds cluster. (Tech: % of “suspect” pixels within a 250 m neighborhood, aggregated over time.)'
+
+  /* NEW EVENT: San José del Guaviare */
+  san_jose: {
+    s1rgb:    { name: 'SAR RGB (VV,VH,VV)', folder: 's1rgb',   desc: 'Three-band SAR composite to see texture and moisture.' },
+    wet:      { name: 'Water / Wetness',    folder: 'wet_pct', desc: 'Persistent/seasonal wetness across the floodplain.' },
+    wetmask:  { name: 'Wet mask (boolean)', folder: 'wet_mask',desc: 'Binary wet surface mask derived from wetness index.' },
+    pond12m:  { name: 'Pond density (1 km² / 12m)', folder: 'pond12m', desc: 'Pond/standing-water density aggregated over ~12 months.' },
+    hotspots: { name: 'Hotspots',           folder: 'hotspots',desc: 'Thermal hotspots (e.g., active fires) overlay from thermal products.' },
+    defyear:  { name: 'Deforestation (yearly)', folder: 'def_year', desc: 'Year of first detected clearing / forest loss.' }
   }
 };
+
+/* Helper: which set is active? */
+function getActiveLayerDefs(){
+  const k = window.__activeEventKey;
+  return (k && EVENT_LAYERS[k]) ? EVENT_LAYERS[k] : GLOBAL_LAYERS;
+}
+/* Helper: resolve bucket folder for a ui layer key */
+function resolveFolder(layerKey){
+  const defs = getActiveLayerDefs();
+  return defs[layerKey]?.folder || layerKey;
+}
 
 const STATIC = {
   freq:   `${BASE}/static/freq/freq/{z}/{x}/{y}.png`,
@@ -98,12 +121,25 @@ const btnCol    = document.getElementById('btnColombia');
 
 // ========= QUARTERS =========
 function buildQuarters(y0,y1){ const qs=['Q1','Q2','Q3','Q4'], out=[]; for(let y=y0;y<=y1;y++) for(let i=0;i<4;i++) out.push(`${y}-${qs[i]}`); return out; }
-const QUARTERS = buildQuarters(2016, 2023);
+const TIMELINE_START_YEAR = 2016;
+const NOW = new Date();
+const CURRENT_YEAR = NOW.getFullYear();
+const TIMELINE_END_YEAR   = Math.max(2025, CURRENT_YEAR);
+const QUARTERS = buildQuarters(TIMELINE_START_YEAR, TIMELINE_END_YEAR);
+const CURRENT_QUARTER_KEY = (() => {
+  const quarter = Math.floor(NOW.getMonth() / 3) + 1;
+  return `${CURRENT_YEAR}-Q${quarter}`;
+})();
+const DEFAULT_QUARTER = QUARTERS.includes(CURRENT_QUARTER_KEY)
+  ? CURRENT_QUARTER_KEY
+  : QUARTERS[QUARTERS.length - 1];
+const DEFAULT_QUARTER_INDEX = Math.max(QUARTERS.indexOf(DEFAULT_QUARTER), 0);
 
 function populateQuarters(){
   quarterSelect.innerHTML = '';
   QUARTERS.forEach(q => { const opt=document.createElement('option'); opt.value=q; opt.textContent=q; quarterSelect.appendChild(opt); });
-  range.min=0; range.max=QUARTERS.length-1; range.value=0;
+  range.min=0; range.max=QUARTERS.length-1; range.value=String(DEFAULT_QUARTER_INDEX);
+  quarterSelect.value = DEFAULT_QUARTER;
   tickLabels.innerHTML=''; QUARTERS.forEach(q=>{ if(q.endsWith('Q1')){ const s=document.createElement('span'); s.textContent=q.split('-')[0]; tickLabels.appendChild(s);} });
 }
 
@@ -125,10 +161,11 @@ async function loadTileCatalog(area){
   const txt = await resp.text();
 
   // Accepts lines as gs://..., https://storage.googleapis.com/... and relative prefix
+  const folderPattern = '([a-z0-9_]+)';
   const reList = [
-    new RegExp(`^gs://sar-colombia-tiles/${area}/tiles/(pond_pct|wet_pct|sar_rgb|suspect)/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$`),
-    new RegExp(`^https?://storage\\.googleapis\\.com/sar-colombia-tiles/${area}/tiles/(pond_pct|wet_pct|sar_rgb|suspect)/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$`),
-    new RegExp(`^${area}/tiles/(pond_pct|wet_pct|sar_rgb|suspect)/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$`)
+    new RegExp(`^gs://sar-colombia-tiles/${area}/tiles/${folderPattern}/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$`),
+    new RegExp(`^https?://storage\\.googleapis\\.com/sar-colombia-tiles/${area}/tiles/${folderPattern}/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$`),
+    new RegExp(`^${area}/tiles/${folderPattern}/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$`)
   ];
 
   const catalog = new Map();
@@ -161,8 +198,6 @@ function normalizeYear(catalog, folder, year){
   return yrs[0];
 }
 
-const EVENT_LAYER_MAP = { s1rgb:'sar_rgb', wet:'wet_pct', pond3m:'pond_pct', suspect:'suspect' };
-
 const AvailableTilesOnly = L.TileLayer.extend({
   initialize: function(urlTemplate, options={}){
     L.TileLayer.prototype.initialize.call(this, urlTemplate, options);
@@ -181,7 +216,7 @@ const AvailableTilesOnly = L.TileLayer.extend({
 
 async function makeEventTileFromTxt({ area, layerKey, quarter, opacity }){
   const catalog = await loadTileCatalog(area);
-  const folder  = EVENT_LAYER_MAP[layerKey] || layerKey;
+  const folder  = resolveFolder(layerKey);
   const reqYear = +String(quarter).slice(0,4);
   const year    = normalizeYear(catalog, folder, reqYear);
   const allow   = catalog.get(`${folder}-${year}`) || null;
@@ -303,16 +338,19 @@ async function updateLayer(){
   }
   baseSAR = null;
 
-  if (window.__activeEventKey === 'rio_quito') {
-    console.log('📍 Using Río Quito event tiles');
+  const activeEventKey = window.__activeEventKey;
+  const eventDefs = activeEventKey && EVENT_LAYERS[activeEventKey];
+
+  if (eventDefs) {
+    console.log('📍 Using event tiles for', activeEventKey);
     if (k !== 's1rgb') {
-      baseSAR = await makeEventTileFromTxt({ area:'rio_quito', layerKey:'s1rgb', quarter:q, opacity:0.6 });
+      baseSAR = await makeEventTileFromTxt({ area: activeEventKey, layerKey: 's1rgb', quarter: q, opacity: 0.6 });
       console.log('✅ baseSAR created:', baseSAR);
       baseSAR.addTo(map);
       console.log('✅ baseSAR added to map');
       if (baseSAR.__eventMeta) prefetchEventTiles({ ...baseSAR.__eventMeta, concurrency: 10 });
     }
-    activeLayer = await makeEventTileFromTxt({ area:'rio_quito', layerKey:k, quarter:q, opacity:op });
+    activeLayer = await makeEventTileFromTxt({ area: activeEventKey, layerKey: k, quarter: q, opacity: op });
     console.log('✅ activeLayer created:', activeLayer);
     activeLayer.addTo(map);
     console.log('✅ activeLayer added to map, pane:', activeLayer.options.pane, 'opacity:', activeLayer.options.opacity);
@@ -341,7 +379,8 @@ async function updateLayer(){
     }
   });
 
-  layerDesc.innerHTML = `<strong>${LAYERS[k].name}</strong> — ${LAYERS[k].desc}`;
+  const defs = getActiveLayerDefs();
+  layerDesc.innerHTML = `<strong>${defs[k]?.name || k}</strong> — ${defs[k]?.desc || ''}`;
 }
 
 // ========= STATIC OVERLAYS (event-aware via TXT; versioned, no year) =========
@@ -545,14 +584,30 @@ document.querySelectorAll('.close').forEach(btn=>{
 backdrop.addEventListener('click', closeAllPanels);
 
 // ========= SYNC UI =========
+/* Build radios using the ACTIVE set (global or event-specific) */
 function buildLayerRadios(){
+  const layerDefs = getActiveLayerDefs();
   layerRadios.innerHTML = '';
-  Object.entries(LAYERS).forEach(([key,val],i)=>{
+
+  const entries = Object.entries(layerDefs);
+  entries.forEach(([key,val], idx)=>{
     const id = `lr_${key}`;
     const lab = document.createElement('label');
-    lab.innerHTML = `<input type="radio" name="layerRadio" id="${id}" value="${key}" ${i===0?'checked':''}><span>${val.name}</span>`;
+    lab.innerHTML = `<input type="radio" name="layerRadio" id="${id}" value="${key}" ${idx===0?'checked':''}><span>${val.name}</span>`;
     layerRadios.appendChild(lab);
   });
+
+  if (layerSelect){
+    layerSelect.innerHTML = '';
+    entries.forEach(([key,val])=>{
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = val.name;
+      layerSelect.appendChild(opt);
+    });
+  }
+
+  // hook radios
   layerRadios.querySelectorAll('input[type="radio"]').forEach(r=>{
     r.addEventListener('change', ()=>{
       console.log('🎚️ Radio button changed to:', r.value);
@@ -560,18 +615,37 @@ function buildLayerRadios(){
       updateLayer();
     });
   });
+
+  // ensure hidden select matches the first available item
+  const firstKey = entries[0]?.[0];
+  if (firstKey){
+    layerSelect.value = firstKey;
+    // also update the descriptive paragraph
+    const desc = layerDefs[firstKey]?.desc || '';
+    if (layerDesc) layerDesc.innerHTML = `<strong>${layerDefs[firstKey].name}</strong> — ${desc}`;
+  }
 }
 
 quarterSelect.addEventListener('change', ()=>{ const i=QUARTERS.indexOf(quarterSelect.value); if(i>=0) range.value=String(i); updateLayer(); });
 range.addEventListener('input', ()=>{ const i=parseInt(range.value,10); quarterSelect.value=QUARTERS[i]; updateLayer(); });
 lpOpacity.addEventListener('input', ()=>{ if(activeLayer) activeLayer.setOpacity(parseFloat(lpOpacity.value)); });
 
-infoBtn.addEventListener('click', ()=>{ const k=layerSelect.value; alert(`${LAYERS[k].name}\n\n${LAYERS[k].desc}`); });
+infoBtn.addEventListener('click', ()=>{
+  const k = layerSelect.value;
+  const defs = getActiveLayerDefs();
+  const meta = defs[k] || { name: k, desc: '' };
+  alert(`${meta.name}\n\n${meta.desc || ''}`);
+});
 // UTILITIES
 function applyCbMode(on){
   const root = document.documentElement;
-  if (on) root.setAttribute('data-theme','cb');
-  else    root.removeAttribute('data-theme');
+  if (on){
+    root.setAttribute('data-theme','cb');
+    root.setAttribute('data-cbfilter','1'); // enable global color filter (affects map/images too)
+  } else {
+    root.removeAttribute('data-theme');
+    root.removeAttribute('data-cbfilter');
+  }
   try{ localStorage.setItem('ui_cb', on ? '1' : '0'); }catch(_) {}
 }
 
@@ -691,12 +765,12 @@ const ANALYSIS_BY_EVENT = {
       'Use frequency and post–pre masks to separate persistent vs seasonal water.'
     ]
   },
-  sabana: {
-    title: 'Bogotá Savanna – peri-urban wetlands (placeholder)',
+  san_jose: {
+    title: 'San José del Guaviare – wetlands, fire and forest change (placeholder)',
     paragraphs: [
-      'Fragmented wetlands influenced by urban expansion.',
-      'Drainage works and agriculture modify pond persistence.',
-      'Combine out-of-channel and density layers to locate hotspots.'
+      'Stack explores the wetland complex near San José del Guaviare, blending SAR wetness metrics with hotspots and fire scars.',
+      'Quarterly wetness and masks point to persistently saturated zones bordering the Guaviare River and surrounding ponds.',
+      'Hotspots and deforestation layers add multi-hazard context for monitoring landscape stressors.'
     ]
   },
   __default: {
@@ -709,6 +783,45 @@ const ANALYSIS_BY_EVENT = {
   }
 };
 
+// Refine San José del Guaviare layer descriptions and names (brief but technical + how to use)
+try {
+  const sj = EVENT_LAYERS && EVENT_LAYERS.san_jose;
+  if (sj){
+    sj.s1rgb.desc = 'C-band SAR false-color composite. Bright = rough ground or built-up; dark = smooth open water. Use for quick context while scanning wet belts and edges.';
+    sj.wet.desc   = 'Wetness fraction per year (share of months flagged wet). High = persistent water or waterlogged soils. Use to find floodplain storage and saturated zones.';
+    sj.wetmask.desc = 'Wet or not-wet for the selected quarter or year (thresholded from SAR). Use to map current inundation extent.';
+    if (sj.pond12m){
+      sj.pond12m.name = 'Pond density (1 km2 / 12 mo)';
+      sj.pond12m.desc = 'Neighborhood share of wet pixels across the last 12 months. High values reveal pond networks and low-lying storage.';
+    }
+    sj.hotspots.desc = 'Satellite thermal anomalies (active fire detections). Use to flag burning corridors in the dry season.';
+    sj.defyear.desc  = 'First year of detected forest loss. Newer colors = recent clearing. Use to track front edges near wetlands.';
+  }
+} catch(_) {}
+
+// Override with clear, empathetic analysis per event
+ANALYSIS_BY_EVENT.rio_quito = {
+  title: 'R\u00EDo Quito — gold mining, river change, and people',
+  paragraphs: [
+    'A river is more than water — it is the pantry, the road, and the memory of Afro-Colombian families who live along the R\u00EDo Quito. In recent years, the quiet bends that once fed fish and stories have been carved into deep pools and levees by illegal gold mining. Many households now face muddier water, harder navigation, and the fear of mercury lingering in the ponds next to their homes.',
+    'Historically, the river meandered across a broad floodplain, flooding seasonally and then draining. As gold prices rose, alluvial dredges spread around Paimad\u00F3 and nearby communities. Excavated pits and piles of tailings forced the current to jump its banks, cutting new shortcuts while eroding older margins. What used to be slow water now rushes; what used to be firm ground now holds water for months.',
+    'What the map shows in simple terms: dark, smooth patches in the SAR layers mark water that stays put — ponds and flooded pits beyond the main channel. The “Out-of-channel water” and “Pond density” layers highlight those spots; the “Main channel” and “Buffer” masks help you tell natural floodplain water apart from new ponds. From 2016 to 2020, these out-of-channel clusters become more common and more connected near mining fronts.',
+    'Graph analysis (how the trend behaves): if you were to plot the total out-of-channel wet area by year, you would expect a rising line through 2016–2020 near Paimad\u00F3. A seasonal curve would show slower drainage after floods — the wet area staying higher for longer into the dry months. Pond-density would climb first, then level off where excavation slows, while “post–pre change” spikes where recent works intensified water retention.',
+    'Why this matters: more ponds can mean more mercury reservoirs and more sediment pulses when big floods reconnect them to the main river. For families, it means longer stretches of unsafe water and riskier boat travel. For the river, it means a channel that keeps changing shape faster than communities can adapt. These layers are a starting point to plan cleanups, restore flow paths, and protect the people who call the river home.'
+  ]
+};
+
+ANALYSIS_BY_EVENT.san_jose = {
+  title: 'San Jos\u00E9 del Guaviare — wetlands, fire, and forest edges',
+  paragraphs: [
+    'On the edge of the Amazon, wetlands near San Jos\u00E9 del Guaviare store water, soften floods, and cool the air. Families fish, farm, and travel across this mosaic of rivers, ponds, and forests. In dry seasons, smoke can creep in from grass and forest fires; in wet seasons, low-lying zones fill and slowly let go of water that sustains life downstream.',
+    'Historically, this has been a frontier region — a meeting place of long-standing Indigenous territories, colonist settlements, and expanding roads. After 2016, as conflict eased in some areas, deforestation advanced faster in others, opening new clearings for pasture or crops and raising fire risk during the dry months. The wetland belts around the Guaviare River remain, but their margins are under pressure.',
+    'What the map shows in simple terms: the SAR “Wetness” and “Wet mask” layers reveal saturated belts that hug the river and fill nearby ponds; “Hotspots” mark active fire detections when they occur; “Deforestation (yearly)” colors where the first forest clearing was detected. Together they show where water persists, where land is being opened, and where heat spikes during dry spells.',
+    'Graph analysis (how the trend behaves): a monthly wet-area line would normally rise with rains and dip mid-year. In years with many hotspots, you would see clear spikes in the dry season. The deforestation curve steps upward as new clearings appear, not shrinking back. When you overlay these stories, a pattern emerges: drier edges plus more open land can push fire risk up, even as core wetlands stay wet.',
+    'Why this matters: losing tree cover near wetlands can warm and dry the landscape, making fires more likely and reducing water quality. For communities, that means smoky air, stressed crops, and harder choices about land use. These layers help point to where keeping trees, restoring streamside vegetation, and preventing burns can protect water, livelihoods, and wildlife.'
+  ]
+};
+
 // 2) Cache analysis modal nodes (robust to small HTML changes)
 const sbAnalysisModal = document.getElementById('sbAnalysisModal');
 const getAnalysisTitleEl = () =>
@@ -718,13 +831,31 @@ const getAnalysisBodyEl = () =>
   document.getElementById('sbAnalysisBody') ||
   (sbAnalysisModal && sbAnalysisModal.querySelector('.sb-body, .body, .content, .sb-modal-body'));
 
+// Helper: replace long dashes with a simple hyphen for UI text
+function sanitizeDashesIn(root){
+  try{
+    const dashLike = /[\u2014\u2013\u2012\u2015\u2212\u2011\u2010]/g; // em, en, figure, horiz bar, minus, non-breaking, hyphen
+    const walker = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    while(walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(n => {
+      const before = n.nodeValue;
+      const after = before.replace(dashLike, '-');
+      if (after !== before) n.nodeValue = after;
+    });
+  } catch(e){ /* no-op in non-DOM contexts */ }
+}
+
 // 3) Fill modal with the analysis for a given event key
 function setAnalysisContentFor(eventKey){
   const data = ANALYSIS_BY_EVENT[eventKey] || ANALYSIS_BY_EVENT.__default;
   const t = getAnalysisTitleEl();
   const b = getAnalysisBodyEl();
   if (t) t.textContent = data.title;
-  if (b) b.innerHTML = data.paragraphs.map(p => `<p>${p}</p>`).join('');
+  if (b){
+    b.innerHTML = data.paragraphs.map(p => `<p>${p}</p>`).join('');
+    sanitizeDashesIn(b);
+  }
 }
 
 // 4) Open/close helpers
@@ -789,14 +920,50 @@ sbTabs.forEach(btn=>{
 });
 
 // Events
+/* ===== Left menu: Events (update list) ===== */
 const SB_EVENTS = [
-  { id: 'rio_quito', title: 'Río Quito', sub: 'Paimadó, Chocó', center: [5.492, -76.724], zoom: 13, eventKey: 'rio_quito',
-    body: 'Annual series 2016–2023 from the event bucket. The quarter slider controls the year used.' },
-  { id:'mojana', title:'Mompós Depression / Mojana', sub:'Bolívar–Sucre', center:[8.50,-74.30], zoom:9,
-    body:'Placeholder: seasonal wetlands and overbank inundation.' },
-  { id:'sabana', title:'Bogotá Savanna', sub:'Cundinamarca', bbox:[[4.45,-74.35],[4.95,-73.95]],
-    body:'Placeholder: peri-urban wet areas.' }
+  {
+    id: 'rio_quito',
+    title: 'Río Quito',
+    sub: 'Paimadó, Chocó',
+    center: [5.492, -76.724],  // verified focus for your tiles
+    zoom: 13,
+    eventKey: 'rio_quito',
+    body: 'Annual series 2016–2023 from the event bucket. The quarter slider picks the year closest to the selected quarter.'
+  },
+  {
+    id: 'san_jose',
+    title: 'San José del Guaviare',
+    sub: 'Guaviare',
+    center: [2.572, -72.645],  // center near town; adjust if your tiles focus elsewhere
+    zoom: 12,
+    eventKey: 'san_jose',
+    body: 'Demo stack centered on San José del Guaviare. Layers include wetness, masks, pond density, hotspots, fire, deforestation and ERA5 context.'
+  }
 ];
+
+// Override event cards with clear, empathetic context
+try {
+  const byId = Object.fromEntries(SB_EVENTS.map(e => [e.id, e]));
+  if (byId.rio_quito){
+    byId.rio_quito.title = 'R\u00EDo Quito';
+    byId.rio_quito.sub   = 'Paimad\u00F3, Choc\u00F3';
+    byId.rio_quito.body  = [
+      'The river is a lifeline for Afro-Colombian families. Illegal alluvial mining has cut new channels and left deep ponds next to homes and farms.',
+      'Historically a meandering river, R\u00EDo Quito flooded and drained with the seasons. Since the mid‑2010s, dredges around Paimad\u00F3 reshaped banks and slowed drainage.',
+      'Today, clusters of out‑of‑channel water and ponds persist. Communities face muddier water, riskier navigation, and mercury concerns.'
+    ];
+  }
+  if (byId.san_jose){
+    byId.san_jose.title = 'San Jos\u00E9 del Guaviare';
+    byId.san_jose.sub   = 'Guaviare';
+    byId.san_jose.body  = [
+      'On the Amazon\u2019s edge, wetlands store water and cool the air for nearby neighborhoods and farms.',
+      'After 2016, forest clearing expanded in some frontiers, raising dry‑season fire risk while wet belts kept storing water.',
+      'Hotspots and deforestation layers show where land is opening and when heat spikes, helping protect people and water.'
+    ];
+  }
+} catch(_) {}
 
 const sbEvents = document.getElementById('sbEvents');
 function renderSbEvents(){
@@ -820,6 +987,19 @@ function renderSbEvents(){
       // openAnalysisFor(__currentEventKey);
     });
 
+    // Double-click: open the Layers panel for quick access to layer radios
+    btn.addEventListener('dblclick', ()=>{
+      __currentEventKey = ev.eventKey || ev.id || null;
+      setAnalysisContentFor(__currentEventKey);
+      focusEvent(ev);
+      try {
+        // mimic the Layers FAB behavior
+        if (typeof closeAllPanels === 'function') closeAllPanels();
+        const lp = document.getElementById('layersPanel');
+        if (lp) lp.classList.add('open');
+      } catch(_) {}
+    });
+
     sbEvents.appendChild(btn);
   });
 }
@@ -837,12 +1017,24 @@ function focusEvent(ev){
     sbFocusLayer = null;
   }
 
-  if (ev.eventKey === 'rio_quito') { window.__setEventStrategy && window.__setEventStrategy('rio_quito'); }
-  else                              { window.__setEventStrategy && window.__setEventStrategy(null); }
-  if (typeof updateLayer === 'function') updateLayer();
+  // Strategy switching (tiles) + dynamic menu
+  if (ev.eventKey === 'rio_quito' || ev.eventKey === 'san_jose') {
+    window.__setEventStrategy && window.__setEventStrategy(ev.eventKey);
+  } else {
+    window.__setEventStrategy && window.__setEventStrategy(null);
+  }
+
+  // Rebuild the layer radio UI for the chosen event
+  buildLayerRadios();
+  updateLayer();
 
   sbEventTitle.textContent = ev.title;
-  sbEventBody.innerHTML = `<p>${ev.body||'Event description (placeholder).'}</p>`;
+  if (Array.isArray(ev.body)){
+    sbEventBody.innerHTML = ev.body.map(p=>`<p>${p}</p>`).join('');
+  } else {
+    sbEventBody.innerHTML = `<p>${ev.body||'Event description (placeholder).'}</p>`;
+  }
+  sanitizeDashesIn(sbEventBody);
   sbEventModal.classList.add('open'); sbBackdrop.classList.add('open');
 }
 
@@ -876,6 +1068,115 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
+// Sanitize any remaining long dashes after DOM is ready
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Update tutorial/help and analysis placeholders with brief, clear guidance
+  try {
+    // Events tip in sidebar
+    const sbEventsEl = document.getElementById('sbEvents');
+    if (sbEventsEl){
+      const tip = sbEventsEl.nextElementSibling;
+      if (tip && tip.classList.contains('muted')){
+        tip.textContent = 'Click once to teleport; double-click to open Layers.';
+      }
+    }
+
+    // Events tip in Geo Drawer (if present)
+    const gdEventsList = document.getElementById('gdEventsList');
+    if (gdEventsList){
+      const tip2 = gdEventsList.nextElementSibling;
+      if (tip2 && /gd-muted/.test(tip2.className)){
+        tip2.textContent = 'Click once to teleport; double-click to open Layers.';
+      }
+    }
+
+    // sb-panel-analysis muted copy
+    const sbOpenBtn = document.getElementById('sbOpenAnalysis');
+    const sbMuted = sbOpenBtn?.previousElementSibling;
+    if (sbMuted && sbMuted.classList.contains('muted')){
+      sbMuted.textContent = 'Brief problem overview: Rio Quito - mining and channel change; San Jose del Guaviare - wetlands, fire, and forest edges. Open the pop-up for details.';
+    }
+
+    // Rename the UI toggle label to reflect universal mode
+    if (cbModeToggle){
+      const lblSpan = cbModeToggle.parentElement && cbModeToggle.parentElement.querySelector('span');
+      if (lblSpan) lblSpan.textContent = 'Color-blind mode';
+    }
+
+    // Help modal bullets
+    const helpList = document.querySelector('#helpModal .modal-body ol');
+    if (helpList){
+      helpList.innerHTML = [
+        'Select an <strong>Event</strong> to center the map and open a short summary. Use <strong>Analysis</strong> for a clear explanation.',
+        'Open <strong>Layers</strong> to choose a dynamic layer. Descriptions explain what it shows and how to use it. Adjust <strong>opacity</strong> to compare.',
+        'Toggle <strong>Static overlays</strong> for context: 2016-2023 frequency, post-pre change, main channel, and channel buffer.',
+        'Use the <strong>timeline</strong> to step through quarters, or press <strong>Play</strong> to animate.',
+        'In <strong>Settings</strong>, toggle National boundary and Place labels or switch on <strong>Color-blind mode</strong> to recolor the whole page (including the map) with a simple global filter.'
+      ].map(li=>`<li>${li}</li>`).join('');
+    }
+
+    // Geo Drawer analysis placeholder
+    const gdMuted = document.querySelector('#gd-tab-analysis .gd-muted');
+    if (gdMuted){
+      gdMuted.textContent = 'Brief problem overview: Rio Quito - mining and channel change; San Jose del Guaviare - wetlands, fire, and forest edges. Open the pop-up for details.';
+    }
+
+    // Geo Drawer analysis modal body
+    const gdAnalBody = document.querySelector('#gdAnalysisModal .gd-card-body');
+    if (gdAnalBody){
+      gdAnalBody.innerHTML = '<p>You will see two stories on the map: Rio Quito - mining linked channel change and pond clusters; San Jose del Guaviare - wetlands under pressure from fire and deforestation edges. Use the Layers and timeline to explore, then open Analysis for the plain language summary.</p>';
+    }
+
+    // Update any legacy hints that say tiles stay the same
+    document.querySelectorAll('.hint').forEach(el=>{
+      if ((el.textContent||'').toLowerCase().includes('tiles stay the same')){
+        el.textContent = 'Color-blind mode applies a simple global filter to the whole page (including the map).';
+      }
+    });
+
+    // Ensure a single, universal SVG filter exists for color-blind mode
+    if (!document.getElementById('cb_ucb_svg')){
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('id', 'cb_ucb_svg');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('focusable', 'false');
+      svg.style.position = 'absolute';
+      svg.style.width = '0';
+      svg.style.height = '0';
+      svg.style.left = '-9999px';
+
+      const filter = document.createElementNS(NS, 'filter');
+      filter.setAttribute('id', 'cb_ucb');
+      filter.setAttribute('color-interpolation-filters', 'sRGB');
+
+      // Universal matrix: gently separates reds/greens and boosts blue channel to
+      // improve contrast across common deficiencies without over-shifting hues.
+      const fe = document.createElementNS(NS, 'feColorMatrix');
+      fe.setAttribute('type', 'matrix');
+      fe.setAttribute('values', [
+        '0.95 0.05 0.00 0 0',
+        '0.05 0.95 0.00 0 0',
+        '0.05 0.05 0.90 0 0',
+        '0    0    0    1 0'
+      ].join(' '));
+
+      filter.appendChild(fe);
+      svg.appendChild(filter);
+      document.body.appendChild(svg);
+    }
+
+    // Sidebar Analysis modal default body
+    const sbAnalBody = document.getElementById('sbAnalysisBody');
+    if (sbAnalBody && /placeholder/i.test(sbAnalBody.textContent || '')){
+      sbAnalBody.textContent = 'You will see two stories: Rio Quito - mining linked channel change and pond clusters; San Jose del Guaviare - wetlands under pressure from fire and deforestation edges.';
+    }
+  } catch(_) {}
+
+  // Normalize long dashes across the UI
+  sanitizeDashesIn(document.body);
+});
+
 /* ================== Event strategy (auto-detect TMS/XYZ) ================== */
 (function(){
   const buildDefaultURL = (layerKey, quarter) =>
@@ -883,7 +1184,7 @@ document.addEventListener('keydown',(e)=>{
 
   const EVENT_DEFS = {
     rio_quito: {
-      layerKeyMap: { s1rgb: 'sar_rgb', wet: 'wet_pct', pond3m: 'pond_pct', suspect: 'suspect' },
+      area: 'rio_quito',
       availableYears: [2016, 2017, 2018, 2019, 2020],
       normalizeYear(y){
         const yrs = this.availableYears; y=+y;
@@ -894,8 +1195,21 @@ document.addEventListener('keydown',(e)=>{
       buildUrl(layerKey, quarterStr){
         const yearStr = String(quarterStr).slice(0,4);
         const year = this.normalizeYear(+yearStr);
-        const folder = this.layerKeyMap[layerKey] || layerKey;
-        return `https://storage.googleapis.com/${BUCKET}/rio_quito/tiles/${folder}/${year}/{z}/{x}/{y}.png`;
+        const folder = resolveFolder(layerKey);
+        return `https://storage.googleapis.com/${BUCKET}/${this.area}/tiles/${folder}/${year}/{z}/{x}/{y}.png`;
+      }
+    },
+    san_jose: {
+      area: 'san_jose',
+      normalizeYear(y){ return +y; },
+      tms: true,
+      minZoom:10,
+      maxNativeZoom:14,
+      buildUrl(layerKey, quarterStr){
+        const yearStr = String(quarterStr).slice(0,4);
+        const year = this.normalizeYear(+yearStr);
+        const folder = resolveFolder(layerKey);
+        return `https://storage.googleapis.com/${BUCKET}/${this.area}/tiles/${folder}/${year}/{z}/{x}/{y}.png`;
       }
     }
   };
@@ -906,13 +1220,18 @@ document.addEventListener('keydown',(e)=>{
       window.__activeEventKey = null; return;
     }
     const def = EVENT_DEFS[key];
+    if (!def){
+      window.__activeEventKey = null;
+      window.TileURLStrategy = { buildUrl: buildDefaultURL, tms:false, minZoom:5, maxNativeZoom:EXPORTED_MAX_ZOOM };
+      return;
+    }
+    window.__activeEventKey = key;
     window.TileURLStrategy = {
       buildUrl: (layerKey,q)=>def.buildUrl(layerKey,q),
       tms:!!def.tms,
       minZoom:def.minZoom??5,
       maxNativeZoom:def.maxNativeZoom??EXPORTED_MAX_ZOOM
     };
-    window.__activeEventKey = key;
     autoDetectScheme(def);
   }
 

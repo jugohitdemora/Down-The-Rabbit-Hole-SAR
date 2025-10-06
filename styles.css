@@ -462,7 +462,14 @@ button{ cursor:pointer; }
   --ui-accent: #7cc5ff; /* default */
 }
 
-/* Tema accesible: colores seguros (paleta tipo Okabe–Ito / ColorBrewer) */
+/* Tema accesible: colores seguros (paleta tipo Okabe-Ito / ColorBrewer) */
+
+/* Global color-blind filter (simple, applies to entire page including map/images) */
+html[data-cbfilter="1"], body[data-cbfilter="1"]{
+  /* Universal color-blind mode: apply SVG color matrix + gentle tuning */
+  filter: url(#cb_ucb) saturate(1.25) contrast(1.2) hue-rotate(18deg) brightness(1.03);
+  -webkit-filter: url(#cb_ucb) saturate(1.25) contrast(1.2) hue-rotate(18deg) brightness(1.03);
+}
 [data-theme="cb"]{
   --ui-bg-1: #0f1420;
   --ui-bg-2: #0b101a;
