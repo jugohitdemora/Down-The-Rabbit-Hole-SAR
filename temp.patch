@@ -1,0 +1,135 @@
+﻿diff --git a/app.js b/app.js
+index a61bbd26c4903a81c73691e1afd7c20f577480f8..e1928f307e0a12e3351792cafde5a8bee9522414 100644
+--- a/app.js
++++ b/app.js
+@@ -76,56 +76,69 @@ const backdrop    = document.getElementById('backdrop');
+ const layerSelect   = document.getElementById('layerSelect'); // hidden
+ const quarterSelect = document.getElementById('quarterSelect');
+ const playToggle    = document.getElementById('playToggle');
+ const range         = document.getElementById('timelineRange');
+ const tickLabels    = document.getElementById('tickLabels');
+ const infoBtn       = document.getElementById('infoBtn');
+ 
+ const layerRadios = document.getElementById('layerRadios');
+ const lpOpacity   = document.getElementById('lpOpacity');
+ const lpFreq      = document.getElementById('lpFreq');
+ const lpDelta     = document.getElementById('lpDelta');
+ const lpMainCh    = document.getElementById('lpMainCh');
+ const lpMainBuf   = document.getElementById('lpMainBuf');
+ const layerDesc   = document.getElementById('layerDesc');
+ const staticInfoBtn = document.getElementById('staticInfoBtn');
+ const staticInfoBox = document.getElementById('staticInfoBox');
+ const cbModeToggle = document.getElementById('cbModeToggle');
+ 
+ // References
+ const chkPais   = document.getElementById('chkPais');
+ const chkLabels = document.getElementById('chkLabels');
+ const btnCol    = document.getElementById('btnColombia');
+ 
+ // ========= QUARTERS =========
+ function buildQuarters(y0,y1){ const qs=['Q1','Q2','Q3','Q4'], out=[]; for(let y=y0;y<=y1;y++) for(let i=0;i<4;i++) out.push(${y}-); return out; }
+-const QUARTERS = buildQuarters(2016, 2023);
++const TIMELINE_START_YEAR = 2016;
++const NOW = new Date();
++const CURRENT_YEAR = NOW.getFullYear();
++const TIMELINE_END_YEAR   = Math.max(2025, CURRENT_YEAR);
++const QUARTERS = buildQuarters(TIMELINE_START_YEAR, TIMELINE_END_YEAR);
++const CURRENT_QUARTER_KEY = (() => {
++  const quarter = Math.floor(NOW.getMonth() / 3) + 1;
++  return ${CURRENT_YEAR}-Q;
++})();
++const DEFAULT_QUARTER = QUARTERS.includes(CURRENT_QUARTER_KEY)
++  ? CURRENT_QUARTER_KEY
++  : QUARTERS[QUARTERS.length - 1];
++const DEFAULT_QUARTER_INDEX = Math.max(QUARTERS.indexOf(DEFAULT_QUARTER), 0);
+ 
+ function populateQuarters(){
+   quarterSelect.innerHTML = '';
+   QUARTERS.forEach(q => { const opt=document.createElement('option'); opt.value=q; opt.textContent=q; quarterSelect.appendChild(opt); });
+-  range.min=0; range.max=QUARTERS.length-1; range.value=0;
++  range.min=0; range.max=QUARTERS.length-1; range.value=String(DEFAULT_QUARTER_INDEX);
++  quarterSelect.value = DEFAULT_QUARTER;
+   tickLabels.innerHTML=''; QUARTERS.forEach(q=>{ if(q.endsWith('Q1')){ const s=document.createElement('span'); s.textContent=q.split('-')[0]; tickLabels.appendChild(s);} });
+ }
+ 
+ // ========= TILES: helpers (TXT catalog for events) =========
+ const transparentPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
+ const BLANK_PNG = transparentPng;
+ 
+ const __TileCatalog = Object.create(null);
+ 
+ async function loadTileCatalog(area){
+   if (__TileCatalog[area]) return __TileCatalog[area];
+   const url = ./data/lista_.txt;
+   const resp = await fetch(url);
+   if (!resp.ok) {
+     console.warn([catalog] Could not load  (status ));
+     __TileCatalog[area] = new Map();
+     return __TileCatalog[area];
+   }
+   const txt = await resp.text();
+ 
+   // Accepts lines as gs://..., https://storage.googleapis.com/... and relative prefix
+   const reList = [
+     new RegExp(^gs://sar-colombia-tiles//tiles/(pond_pct|wet_pct|sar_rgb|suspect)/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$),
+     new RegExp(^https?://storage\\.googleapis\\.com/sar-colombia-tiles//tiles/(pond_pct|wet_pct|sar_rgb|suspect)/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$),
+     new RegExp(^/tiles/(pond_pct|wet_pct|sar_rgb|suspect)/(\\d{4})/(\\d+)/(\\d+)/(\\d+)\\.png$)
+diff --git a/app.js b/app.js
+index a61bbd26c4903a81c73691e1afd7c20f577480f8..e1928f307e0a12e3351792cafde5a8bee9522414 100644
+--- a/app.js
++++ b/app.js
+@@ -604,52 +617,52 @@ window.debugMap = function() {
+   console.log('\n🎨 Pane z-indexes:');
+   ['basemap', 'mask', 'dynamic', 'static', 'borders', 'labels'].forEach(paneName => {
+     const pane = map.getPane(paneName);
+     if (pane) {
+       console.log(  :, {
+         zIndex: pane.style.zIndex,
+         childCount: pane.children.length,
+         display: window.getComputedStyle(pane).display,
+         opacity: window.getComputedStyle(pane).opacity
+       });
+     }
+   });
+ };
+ 
+ console.log('💡 Debug utility loaded. Type debugMap() in console to inspect map state.');
+ 
+ 
+ // ========= INIT =========
+ (function init(){
+   // 1) UI básica
+   populateQuarters();
+   buildLayerRadios();
+ 
+   // 2) Estado inicial de capas dinámicas
+   layerSelect.value   = 'suspect';
+-  quarterSelect.value = QUARTERS[0];
+-  range.value         = 0;
++  quarterSelect.value = DEFAULT_QUARTER;
++  range.value         = String(DEFAULT_QUARTER_INDEX);
+   lpOpacity.value     = 0.9;
+ 
+   // 3) Decoración de país (límite + glow + máscara)
+   chkPais.checked = true;
+   loadPaisDecorado().then(({edge,glow,mask})=>{
+     if (mask) mask.addTo(map);
+     if (glow) glow.addTo(map);
+     if (edge) edge.addTo(map);
+   });
+ 
+   // 4) Etiquetas activas por defecto
+   chkLabels.checked = true;
+   labelsLayer.addTo(map);
+ 
+   // 5) Restaurar preferencia de Color-blind mode (UI)
+   const savedCb = (typeof localStorage !== 'undefined' && localStorage.getItem('ui_cb') === '1');
+   if (cbModeToggle) cbModeToggle.checked = savedCb;
+   applyCbMode(savedCb);
+ 
+   // 6) Primer render de la capa dinámica
+   updateLayer();
+ })();
+ 
+ // Listener del toggle en Settings
+ cbModeToggle?.addEventListener('change', (e)=> applyCbMode(e.target.checked));
