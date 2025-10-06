@@ -356,3 +356,172 @@ button{ cursor:pointer; }
   /* mix-blend-mode: screen; */                /* ilumina sin cambiar colores base */
   /* filter: brightness(1.35) contrast(1.6); */ /* ajusta a gusto */
 }
+/* ── Analysis modal: layout + readability ───────────────────────── */
+
+#sbBackdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.35);
+  backdrop-filter: saturate(1.2) blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+  z-index: 640; /* por encima del mapa, debajo del modal */
+}
+#sbBackdrop.open{ opacity: 1; pointer-events: auto; }
+
+/* Contenedor del modal anclado al centro-inferior */
+#sbAnalysisModal{
+  position: fixed;
+  left: 50%;
+  bottom: 64px;                    /* separadito del borde */
+  transform: translateX(-50%) translateY(16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .25s ease, opacity .25s ease;
+  z-index: 650;                    /* > labels (600) */
+}
+#sbAnalysisModal.open{
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Tarjeta */
+#sbAnalysisModal .sb-modal-card{
+  width: min(920px, calc(100vw - 64px));
+  background: rgba(13,18,27,.92);                  /* oscuro, misma paleta */
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  color: #e7eef9;
+}
+
+/* Cabecera */
+#sbAnalysisModal .sb-modal-header{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+#sbAnalysisTitle{
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: .2px;
+  margin: 0;
+}
+
+/* Cuerpo con scroll interno y buena legibilidad */
+#sbAnalysisModal .sb-modal-body{
+  padding: 16px 20px 20px;
+  max-height: min(58vh, 520px);
+  overflow: auto;
+  line-height: 1.6;
+  font-size: 15.5px;
+  color: #cfe0ff;
+}
+#sbAnalysisModal .sb-modal-body p{ margin: 0 0 12px; }
+
+/* Botón cerrar */
+#sbAnalysisModal .sb-close{
+  margin-left: auto;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: inline-grid; place-items: center;
+  background: rgba(255,255,255,.08);
+  color: #d7e7ff;
+  border: 1px solid rgba(255,255,255,.12);
+  cursor: pointer;
+  transition: .2s ease;
+}
+#sbAnalysisModal .sb-close:hover{
+  background: rgba(255,255,255,.14);
+  transform: translateY(-1px);
+}
+
+/* Responsive */
+@media (max-width: 600px){
+  #sbAnalysisModal{ bottom: 16px; }
+  #sbAnalysisModal .sb-modal-card{ width: calc(100vw - 24px); }
+  #sbAnalysisModal .sb-modal-body{ max-height: 55vh; }
+}
+/* ──────────────────────────────────────────────────────────────
+   Color-blind friendly mode (UI only) — does not recolor tiles
+   ────────────────────────────────────────────────────────────── */
+
+/* Variables base (usadas solo en overrides de abajo) */
+:root{
+  --ui-bg-1: rgba(13,18,27,.92);
+  --ui-bg-2: #111827;
+  --ui-border: rgba(255,255,255,.10);
+  --ui-text-1: #e7eef9;
+  --ui-text-2: #cfe0ff;
+  --ui-muted: rgba(231,238,249,.65);
+  --ui-surface: rgba(17,24,39,.9);
+  --ui-accent: #7cc5ff; /* default */
+}
+
+/* Tema accesible: colores seguros (paleta tipo Okabe–Ito / ColorBrewer) */
+[data-theme="cb"]{
+  --ui-bg-1: #0f1420;
+  --ui-bg-2: #0b101a;
+  --ui-border: rgba(255,255,255,.18);
+  --ui-text-1: #ffffff;
+  --ui-text-2: #e6f0ff;
+  --ui-muted: rgba(230,240,255,.80);
+  --ui-surface: #121a27;
+  /* Accentos seguros para deuteran/protan/tritan: */
+  --ui-accent: #0072B2;  /* blue */
+  --ui-accent-2: #E69F00;/* orange */
+  --ui-accent-3: #009E73;/* green */
+  --ui-accent-4: #CC79A7;/* magenta */
+}
+
+/* Overrides suaves sobre tus componentes comunes */
+[data-theme="cb"] .panel,
+[data-theme="cb"] #sb .panel,
+[data-theme="cb"] .sb-modal-card{
+  background: var(--ui-bg-1);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-1);
+}
+
+[data-theme="cb"] .sb-modal-body,
+[data-theme="cb"] .panel .body,
+[data-theme="cb"] .panel p{ color: var(--ui-text-2); }
+
+[data-theme="cb"] .sb-tab.sb-active,
+[data-theme="cb"] .btn.primary,
+[data-theme="cb"] .chip.is-on{
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: #0b101a;
+}
+
+[data-theme="cb"] .sb-tab,
+[data-theme="cb"] .btn{
+  border-color: var(--ui-border);
+}
+
+/* Controles: sliders y checks con acento accesible */
+[data-theme="cb"] input[type="range"]::-webkit-slider-thumb{ background: var(--ui-accent); }
+[data-theme="cb"] input[type="range"]::-moz-range-thumb{ background: var(--ui-accent); }
+[data-theme="cb"] input[type="checkbox"]:checked,
+[data-theme="cb"] input[type="radio"]:checked{
+  accent-color: var(--ui-accent);
+}
+
+/* Toggle fila */
+.setting-row{ margin: 10px 0 14px; }
+.cb-toggle{
+  display: inline-flex; align-items: center; gap: 10px;
+  font-weight: 600; color: var(--ui-text-1);
+}
+.cb-toggle input{ transform: translateY(1px); }
+.hint{ font-size: 12.5px; color: var(--ui-muted); margin-top: 6px; }
+
+/* Opcional: mejora leve de legibilidad de tiles superpuestos */
+[data-theme="cb"] img.leaflet-tile.sar-dyn-tiles{
+  filter: saturate(1.12) contrast(1.1);
+}

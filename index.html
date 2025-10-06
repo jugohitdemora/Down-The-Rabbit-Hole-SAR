@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Visor SAR – Colombia</title>
+  <title>SAR Viewer – Colombia</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="styles.css" />
@@ -11,7 +11,7 @@
 <body>
   <div id="map"></div>
 
-  <!-- Botones flotantes (arriba derecha) -->
+  <!-- Floating buttons (top-right) -->
   <div class="fab-group">
     <button id="btnHelp" class="fab" title="Help">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm0 15.2a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Zm2.1-7.7c-.9.7-1.1 1-1.1 2H11c0-1.4.5-2.3 1.6-3.1.8-.6 1.2-1 1.2-1.7 0-.9-.7-1.5-1.8-1.5-1 0-1.8.5-2.3 1.1l-1.4-1.3C9 3.1 10.3 2.5 12 2.5c2.3 0 3.9 1.3 3.9 3.3 0 1.3-.7 2.3-1.8 3z" fill="currentColor"/></svg>
@@ -24,26 +24,26 @@
     </button>
   </div>
 
-  <!-- Panel lateral (bajado para no chocar con zoom) -->
-    <aside class="sidebar" id="sb">
+  <!-- Left sidebar -->
+  <aside class="sidebar" id="sb">
     <div class="sb-head">
-        <h1>Visor SAR</h1>
-        <button id="sbCollapse" class="sb-collapse" title="Colapsar/expandir">‹</button>
+        <h1>SAR Viewer</h1>
+        <button id="sbCollapse" class="sb-collapse" title="Collapse/expand">‹</button>
     </div>
 
     <!-- Tabs -->
-    <nav class="sb-tabs" role="tablist" aria-label="Menú">
+    <nav class="sb-tabs" role="tablist" aria-label="Menu">
         <button class="sb-tab sb-active" data-tab="events" role="tab" aria-selected="true">
-        <!-- pin con ondas (evento geográfico) -->
+        <!-- geographic event -->
         <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
             <path d="M12 2a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12a6 6 0 0 0-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
             <path d="M3 12c0-5 4-9 9-9M21 12c0-5-4-9-9-9" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".45"/>
         </svg>
-        <span>Eventos</span>
+        <span>Events</span>
         </button>
         <button class="sb-tab" data-tab="analysis" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 3h2v18H3zM19 13h2v8h-2zM11 9h2v12h-2zM7 15h2v6H7zM15 5h2v16h-2z"/></svg>
-        <span>Análisis</span>
+        <span>Analysis</span>
         </button>
         <button class="sb-tab" data-tab="settings" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42H8.85a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L1.38 8.86a.5.5 0 0 0 .12.63l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L1.5 14.9a.5.5 0 0 0-.12.63l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.04.71 1.62.94l.36 2.54c.05.25.26.42.5.42h3.84c.24 0 .46-.17.5-.42l.36-2.54c.58-.23 1.12-.54 1.62-.94l2.39.96c.21.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58Z"/></svg>
@@ -51,90 +51,97 @@
         </button>
     </nav>
 
-    <!-- Panel: Eventos -->
+    <!-- Panel: Events -->
     <section id="sb-panel-events" class="sb-panel sb-active" role="tabpanel">
         <div class="sb-group">
-        <div class="static-title">Eventos geográficos</div>
+        <div class="static-title">Geographic events</div>
         <div id="sbEvents" class="sb-events"></div>
-        <p class="muted" style="margin-top:6px">Selecciona un evento para centrar el mapa y abrir la explicación.</p>
+        <p class="muted" style="margin-top:6px">Select an event to center the map and open its explanation.</p>
         </div>
     </section>
 
-    <!-- Panel: Análisis -->
+    <!-- Panel: Analysis -->
     <section id="sb-panel-analysis" class="sb-panel" role="tabpanel" aria-hidden="true">
         <div class="sb-group">
-        <div class="static-title">Análisis y funcionamiento</div>
-        <p class="muted">Placeholder del análisis (método, datos, supuestos).</p>
-        <button id="sbOpenAnalysis" class="sb-btn">Abrir pop-up</button>
+        <div class="static-title">Analysis and method</div>
+        <p class="muted">Analysis placeholder (method, data, assumptions).</p>
+        <button id="sbOpenAnalysis" class="sb-btn">Open pop-up</button>
         </div>
     </section>
 
-    <!-- Panel: Settings (usa tus mismos IDs para no romper nada) -->
+    <!-- Panel: Settings (reuses your existing IDs) -->
     <section id="sb-panel-settings" class="sb-panel" role="tabpanel" aria-hidden="true">
-        <!-- select oculto: lo usa tu JS existente -->
+        <!-- hidden select (controlled by JS) -->
         <select id="layerSelect" class="hidden">
-        <option value="suspect">Sospechosos</option>
-        <option value="pond3m">Densidad de pozas</option>
-        <option value="wet">Encharcamiento</option>
-        <option value="s1rgb">SAR RGB (VV,VH,VV)</option>
+          <option value="suspect">Out-of-channel water</option>
+          <option value="pond3m">Pond density (250 m)</option>
+          <option value="wet">Water / Wetness</option>
+          <option value="s1rgb">SAR RGB (VV, VH, VV)</option>
         </select>
 
         <div class="info-row">
-        <label class="lbl">Trimestre</label>
-        <select id="quarterSelect"></select>
-        <button id="infoBtn" title="Layer info">i</button>
+          <label class="lbl">Quarter</label>
+          <select id="quarterSelect"></select>
+          <button id="infoBtn" title="Layer info">i</button>
         </div>
 
         <div class="static-box">
-        <div class="static-title">Referencias</div>
-        <label><input type="checkbox" id="chkPais" checked /> Límite nacional</label>
-        <label><input type="checkbox" id="chkLabels" checked /> Nombres de lugares</label>
-        <button id="btnColombia">Centrar en Colombia</button>
+          <div class="static-title">References</div>
+          <label><input type="checkbox" id="chkPais" checked /> National boundary</label>
+          <label><input type="checkbox" id="chkLabels" checked /> Place labels</label>
+          <button id="btnColombia">Center on Colombia</button>
         </div>
+        <!-- Settings › Color-blind friendly mode -->
+        <div class="setting-row">
+          <label class="cb-toggle">
+            <input type="checkbox" id="cbModeToggle">
+            <span>Color-blind friendly mode</span>
+          </label>
+          <div class="hint">High-contrast, color-safe UI palette. (Map tiles stay the same.)</div>
+        </div>
+
 
         <div class="footer-note">
-        Basemap: Esri World Imagery (atribución requerida).<br/>
-        Límites: Natural Earth (dominio público) y geoBoundaries (CC BY 4.0).<br/>
-        Etiquetas: © OpenStreetMap contributors, © CARTO.<br/>
-        Tiles SAR: tu bucket GCS.
+          Basemap: Esri World Imagery (attribution required).<br/>
+          Boundaries: Natural Earth (public domain) and geoBoundaries (CC BY 4.0).<br/>
+          Labels: © OpenStreetMap contributors, © CARTO.<br/>
+          SAR tiles: your GCS bucket.
         </div>
     </section>
-    </aside>
-
-
-    <!-- select oculto, lo controla el panel de capas -->
-    <select id="layerSelect" class="hidden">
-      <option value="suspect">Sospechosos</option>
-      <option value="pond3m">Densidad de pozas</option>
-      <option value="wet">Encharcamiento</option>
-      <option value="s1rgb">SAR RGB (VV,VH,VV)</option>
-    </select>
-
-    <div class="info-row">
-      <label class="lbl">Trimestre</label>
-      <select id="quarterSelect"></select>
-      <button id="infoBtn" title="Layer info">i</button>
-    </div>
-
-    <div class="static-box">
-      <div class="static-title">Referencias</div>
-      <label><input type="checkbox" id="chkPais" checked /> Límite nacional</label>
-      <label><input type="checkbox" id="chkLabels" checked /> Nombres de lugares</label>
-      <button id="btnColombia">Centrar en Colombia</button>
-    </div>
-
-    <div class="footer-note">
-      Basemap: Esri World Imagery (atribución requerida).<br/>
-      Límites: Natural Earth (dominio público) y geoBoundaries (CC BY 4.0).<br/>
-      Etiquetas: © OpenStreetMap contributors, © CARTO.<br/>
-      Tiles SAR: tu bucket GCS.
-    </div>
   </aside>
 
-  <!-- Panel CAPAS -->
+  <!-- Hidden duplicated controls (kept intact, translated) -->
+  <select id="layerSelect" class="hidden">
+    <option value="suspect">Out-of-channel water</option>
+    <option value="pond3m">Pond density (250 m)</option>
+    <option value="wet">Water / Wetness</option>
+    <option value="s1rgb">SAR RGB (VV, VH, VV)</option>
+  </select>
+
+  <div class="info-row">
+    <label class="lbl">Quarter</label>
+    <select id="quarterSelect"></select>
+    <button id="infoBtn" title="Layer info">i</button>
+  </div>
+
+  <div class="static-box">
+    <div class="static-title">References</div>
+    <label><input type="checkbox" id="chkPais" checked /> National boundary</label>
+    <label><input type="checkbox" id="chkLabels" checked /> Place labels</label>
+    <button id="btnColombia">Center on Colombia</button>
+  </div>
+
+  <div class="footer-note">
+    Basemap: Esri World Imagery (attribution required).<br/>
+    Boundaries: Natural Earth (public domain) and geoBoundaries (CC BY 4.0).<br/>
+    Labels: © OpenStreetMap contributors, © CARTO.<br/>
+    SAR tiles: your GCS bucket.
+  </div>
+
+  <!-- Layers panel -->
   <section id="layersPanel" class="panel-floating">
     <div class="panel-header">
-      <h2>Capas</h2>
+      <h2>Layers</h2>
       <button class="close" data-close="#layersPanel">×</button>
     </div>
 
@@ -149,7 +156,7 @@
       <input id="lpOpacity" type="range" min="0" max="1" step="0.05" value="0.9" />
     </div>
 
-        <div class="panel-group">
+    <div class="panel-group">
       <div class="group-title with-info">
         Static overlays
         <button id="staticInfoBtn" class="info-pill" title="Overlay descriptions">
@@ -159,10 +166,10 @@
 
       <div id="staticInfoBox" class="info-box muted" hidden>
         <ul>
-          <li><b>2016–2023 frequency</b>: How often each pixel was wet (share of months). High values = recurrent water.</li>
-          <li><b>Post–pre change</b>: Difference in wetness between 2021–2023 and 2016–2018 (proportion of months). Blue = wetter recently; red = drier.</li>
-          <li><b>Main channel</b>: Persistent river/water from JRC Global Surface Water (occurrence ≥60%).</li>
-          <li><b>Channel buffer</b>: ~150 m around the main channel to focus off-channel activity.</li>
+          <li><b>2016–2023 frequency</b>: How often each pixel was wet (share of months). <i>Tech:</i> fraction of monthly “wet” classifications across 2016–2023; higher = recurrent water presence.</li>
+          <li><b>Post–pre change</b>: Where it got wetter or drier recently. <i>Tech:</i> Δ in wetness between 2021–2023 and 2016–2018 (proportion of months). Positive (blue) = wetter; negative (red) = drier.</li>
+          <li><b>Main channel</b>: Where the river usually is. <i>Tech:</i> JRC Global Surface Water occurrence ≥ 60% mask (persistent water).</li>
+          <li><b>Channel buffer</b>: A safety band around the river to focus off-channel activity. <i>Tech:</i> ~150 m morphological buffer around the main channel mask.</li>
         </ul>
       </div>
 
@@ -188,28 +195,21 @@
         </label>
       </div>
     </div>
-
-
-      <label><input type="checkbox" id="lpFreq" /> 2016–2023 frequency</label>
-      <label><input type="checkbox" id="lpDelta" /> Post–pre change</label>
-      <label><input type="checkbox" id="lpMainCh" /> Main channel</label>
-      <label><input type="checkbox" id="lpMainBuf" /> Channel buffer</label>
-    </div>
   </section>
 
-  <!-- Panel GRÁFICAS -->
+  <!-- Charts panel -->
   <section id="chartsPanel" class="panel-floating">
     <div class="panel-header">
-      <h2>Gráficas</h2>
+      <h2>Charts</h2>
       <button class="close" data-close="#chartsPanel">×</button>
     </div>
     <div class="panel-group">
-      <p class="muted">Series (VV/VH, wet area…) coming soon.</p>
-      <div class="chart-placeholder">Próximamente</div>
+      <p class="muted">Time series (VV/VH, wet area…) coming soon.</p>
+      <div class="chart-placeholder">Coming soon</div>
     </div>
   </section>
 
-  <!-- Modal de AYUDA -->
+  <!-- Help modal -->
   <div id="backdrop"></div>
   <section id="helpModal" class="modal">
     <div class="modal-card">
@@ -244,128 +244,138 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="app.js"></script>
-  <!-- ========== Geo Drawer (nuevo, no interfiere con lo existente) ========== -->
-<button id="gdToggle" class="gd-toggle" aria-label="Abrir menú">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3V6zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/></svg>
-</button>
 
-<aside id="gdDrawer" class="gd-drawer" aria-hidden="true">
-  <div class="gd-head">
-    <div class="gd-brand"><span class="gd-dot"></span><span class="gd-title">Visor SAR</span></div>
-    <button id="gdClose" class="gd-iconbtn" aria-label="Cerrar">
-      <svg viewBox="0 0 24 24"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29 10.59 10.6 16.89 4.29z"/></svg>
-    </button>
-  </div>
+  <!-- Geo Drawer (kept; translated labels) -->
+  <button id="gdToggle" class="gd-toggle" aria-label="Open menu">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3V6zm0 6h18v2H3v-2zm0 6h18v2H3v-2z"/></svg>
+  </button>
 
-  <nav class="gd-tabs" role="tablist" aria-label="Secciones">
-    <button class="gd-tab gd-active" data-tab="events" role="tab" aria-selected="true">
-      <!-- Pin con ondas -->
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 2a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12a6 6 0 0 0-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
-        <path d="M3 12c0-5 4-9 9-9M21 12c0-5-4-9-9-9" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".45"/>
-      </svg>
-      <span>Eventos</span>
-    </button>
-    <button class="gd-tab" data-tab="analysis" role="tab" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h2v18H3zM19 13h2v8h-2zM11 9h2v12h-2zM7 15h2v6H7zM15 5h2v16h-2z"/></svg>
-      <span>Análisis</span>
-    </button>
-    <button class="gd-tab" data-tab="settings" role="tab" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.7 7.85a.5.5 0 0 0 .12.63l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.82 13.9a.5.5 0 0 0-.12.63l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.04.71 1.62.94l.36 2.54c.05.25.26.42.5.42h3.84c.24 0 .46-.17.5-.42l.36-2.54c.58-.23 1.12-.54 1.62-.94l2.39.96c.21.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58ZM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Z"/></svg>
-      <span>Settings</span>
-    </button>
-  </nav>
+  <aside id="gdDrawer" class="gd-drawer" aria-hidden="true">
+    <div class="gd-head">
+      <div class="gd-brand"><span class="gd-dot"></span><span class="gd-title">SAR Viewer</span></div>
+      <button id="gdClose" class="gd-iconbtn" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29 10.59 10.6 16.89 4.29z"/></svg>
+      </button>
+    </div>
 
-  <div class="gd-body">
-    <!-- Eventos -->
-    <section id="gd-tab-events" class="gd-panel gd-active" role="tabpanel">
-      <div class="gd-group">
-        <div class="gd-group-title">Eventos geográficos</div>
-        <div id="gdEventsList" class="gd-events"></div>
-        <p class="gd-muted gd-small">Selecciona un evento para centrar el mapa y abrir la explicación.</p>
-      </div>
-    </section>
+    <nav class="gd-tabs" role="tablist" aria-label="Sections">
+      <button class="gd-tab gd-active" data-tab="events" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12a6 6 0 0 0-6-6zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
+          <path d="M3 12c0-5 4-9 9-9M21 12c0-5-4-9-9-9" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".45"/>
+        </svg>
+        <span>Events</span>
+      </button>
+      <button class="gd-tab" data-tab="analysis" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h2v18H3zM19 13h2v8h-2zM11 9h2v12h-2zM7 15h2v6H7zM15 5h2v16h-2z"/></svg>
+        <span>Analysis</span>
+      </button>
+      <button class="gd-tab" data-tab="settings" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.7 7.85a.5.5 0 0 0 .12.63l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.82 13.9a.5.5 0 0 0-.12.63l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.5.4 1.04.71 1.62.94l.36 2.54c.05.25.26.42.5.42h3.84c.24 0 .46-.17.5-.42l.36-2.54c.58-.23 1.12-.54 1.62-.94l2.39.96c.21.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58ZM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
 
-    <!-- Análisis -->
-    <section id="gd-tab-analysis" class="gd-panel" role="tabpanel" aria-hidden="true">
-      <div class="gd-group">
-        <div class="gd-group-title">Análisis y funcionamiento</div>
-        <p class="gd-muted">Placeholder del análisis. Método, datos y supuestos.</p>
-        <button id="gdOpenAnalysis" class="gd-btn">Abrir pop-up</button>
-      </div>
-    </section>
-
-    <!-- Settings (sin tocar los existentes: estos controlan los mismos estados) -->
-    <section id="gd-tab-settings" class="gd-panel" role="tabpanel" aria-hidden="true">
-      <div class="gd-group">
-        <label class="gd-label">Trimestre</label>
-        <div class="gd-row">
-          <select id="gdQuarterSelect"></select>
-          <button id="gdInfoBtn" class="gd-btn-icon" title="Descripción">i</button>
+    <div class="gd-body">
+      <!-- Events -->
+      <section id="gd-tab-events" class="gd-panel gd-active" role="tabpanel">
+        <div class="gd-group">
+          <div class="gd-group-title">Geographic events</div>
+          <div id="gdEventsList" class="gd-events"></div>
+          <p class="gd-muted gd-small">Select an event to center the map and open its explanation.</p>
         </div>
-      </div>
+      </section>
 
-      <div class="gd-group">
-        <div class="gd-group-title">Referencias</div>
-        <label class="gd-check"><input type="checkbox" id="gdChkPais"> Límite nacional</label>
-        <label class="gd-check"><input type="checkbox" id="gdChkLabels"> Nombres de lugares</label>
-        <button id="gdBtnColombia" class="gd-btn-alt">Centrar en Colombia</button>
-      </div>
-    </section>
-  </div>
-</aside>
+      <!-- Analysis -->
+      <section id="gd-tab-analysis" class="gd-panel" role="tabpanel" aria-hidden="true">
+        <div class="gd-group">
+          <div class="gd-group-title">Analysis and method</div>
+          <p class="gd-muted">Analysis placeholder. Method, datasets and assumptions.</p>
+          <button id="gdOpenAnalysis" class="gd-btn">Open pop-up</button>
+        </div>
+      </section>
 
-    <!-- Pop-ups propios del drawer -->
-    <div id="gdBackdrop" class="gd-backdrop" aria-hidden="true"></div>
+      <!-- Settings (translated labels) -->
+      <section id="gd-tab-settings" class="gd-panel" role="tabpanel" aria-hidden="true">
+        <div class="gd-group">
+          <label class="gd-label">Quarter</label>
+          <div class="gd-row">
+            <select id="gdQuarterSelect"></select>
+            <button id="gdInfoBtn" class="gd-btn-icon" title="Description">i</button>
+          </div>
+        </div>
 
-    <div id="gdEventModal" class="gd-modal" aria-hidden="true">
+        <div class="gd-group">
+          <div class="gd-group-title">References</div>
+          <label class="gd-check"><input type="checkbox" id="gdChkPais"> National boundary</label>
+          <label class="gd-check"><input type="checkbox" id="gdChkLabels"> Place labels</label>
+          <button id="gdBtnColombia" class="gd-btn-alt">Center on Colombia</button>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Drawer pop-ups -->
+  <div id="gdBackdrop" class="gd-backdrop" aria-hidden="true"></div>
+
+  <div id="gdEventModal" class="gd-modal" aria-hidden="true">
     <div class="gd-card">
-        <div class="gd-card-head">
-        <h2 id="gdEventTitle">Evento geográfico</h2>
+      <div class="gd-card-head">
+        <h2 id="gdEventTitle">Geographic event</h2>
         <button class="gd-close" data-gd-close="#gdEventModal">×</button>
-        </div>
-        <div class="gd-card-body" id="gdEventBody">
-        <p>Descripción del suceso (placeholder).</p>
-        </div>
+      </div>
+      <div class="gd-card-body" id="gdEventBody">
+        <p>Event description (placeholder).</p>
+      </div>
     </div>
-    </div>
+  </div>
 
-    <div id="gdAnalysisModal" class="gd-modal" aria-hidden="true">
+  <div id="gdAnalysisModal" class="gd-modal" aria-hidden="true">
     <div class="gd-card">
-        <div class="gd-card-head">
-        <h2>Análisis y funcionamiento</h2>
+      <div class="gd-card-head">
+        <h2>Analysis and method</h2>
         <button class="gd-close" data-gd-close="#gdAnalysisModal">×</button>
-        </div>
-        <div class="gd-card-body">
-        <p>Placeholder del análisis. Estructura sugerida: objetivo, datasets, preprocesamiento, índices y limitaciones.</p>
-        </div>
+      </div>
+      <div class="gd-card-body">
+        <p>Analysis placeholder. Suggested structure: objective, datasets, preprocessing, indices and limitations.</p>
+      </div>
     </div>
-    </div>
-    <div id="sbBackdrop" class="sb-backdrop" aria-hidden="true"></div>
+  </div>
 
-    <div id="sbEventModal" class="sb-modal" aria-hidden="true">
+  <div id="sbBackdrop" class="sb-backdrop" aria-hidden="true"></div>
+
+  <div id="sbEventModal" class="sb-modal" aria-hidden="true">
     <div class="sb-card">
-        <div class="sb-card-head">
-        <h2 id="sbEventTitle">Evento geográfico</h2>
+      <div class="sb-card-head">
+        <h2 id="sbEventTitle">Geographic event</h2>
         <button class="sb-close" data-sb-close="#sbEventModal">×</button>
-        </div>
-        <div class="sb-card-body" id="sbEventBody">
-        <p>Descripción del suceso (placeholder).</p>
-        </div>
+      </div>
+      <div class="sb-card-body" id="sbEventBody">
+        <p>Event description (placeholder).</p>
+      </div>
     </div>
+  </div>
+
+  <!-- Backdrop (debe existir en el <body>) -->
+<div id="sbBackdrop" class="sb-backdrop"></div>
+
+<!-- Modal de Análisis -->
+<div id="sbAnalysisModal" class="sb-modal">
+  <div class="sb-modal-card">
+    <div class="sb-modal-header">
+      <!-- A ESTE título dale el id -->
+      <h3 id="sbAnalysisTitle">Analysis and method</h3>
+
+      <!-- Botón de cerrar: importante el data-sb-close -->
+      <button class="sb-close" data-sb-close="#sbAnalysisModal" aria-label="Close">×</button>
     </div>
 
-    <div id="sbAnalysisModal" class="sb-modal" aria-hidden="true">
-    <div class="sb-card">
-        <div class="sb-card-head">
-        <h2>Análisis y funcionamiento</h2>
-        <button class="sb-close" data-sb-close="#sbAnalysisModal">×</button>
-        </div>
-        <div class="sb-card-body">
-        <p>Placeholder del análisis. Estructura: objetivo, datasets, preprocesamiento, índices, máscaras y limitaciones.</p>
-        </div>
+    <!-- Cuerpo del modal: ponle este id -->
+    <div id="sbAnalysisBody" class="sb-modal-body">
+      Analysis placeholder (method, data, assumptions)…
     </div>
-    </div>
+  </div>
+</div>
 
 </body>
 </html>
