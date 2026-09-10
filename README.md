@@ -2,7 +2,12 @@
 
 An interactive, browser‑based geospatial viewer to explore Synthetic Aperture Radar (SAR) imagery across Colombia (2016–2023). Built for quick visual analysis of wetness dynamics, off‑channel water (e.g., mining ponds/canals), and related environmental change.
 
+Link to Demo:
+
+https://jugohitdemora.github.io/Down-The-Rabbit-Hole-SAR/
+
 Badges: NASA Space Apps Challenge • Leaflet.js • Vanilla JS
+
 
 ---
 
